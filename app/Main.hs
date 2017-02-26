@@ -1,14 +1,16 @@
 module Main where
 
 
-import Options.Applicative
-import ZootOptions
+import System.Environment
+
+
+import Parser
 
 
 main :: IO ()
-main = run =<< execParser
-    (parseOptions `withInfo` "Zoot")
+main = do
+  command <- getArgs
+  run $ parseCommand command
 
-
-run :: Options -> IO ()
-run opts = undefined
+run :: Either ParseError String -> IO ()
+run command = print . show $ command

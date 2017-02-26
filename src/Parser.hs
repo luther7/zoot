@@ -46,17 +46,19 @@ keyword k = try $ do
 stringToken :: Parser String
 stringToken = lexeme (char '\'' *> manyTill anyChar (char '\''))
 
-verb :: Parser String
+
+verb :: Parser Verb
 verb = keyword "list"  <|> keyword "delete" <|> keyword "count"
 
-target :: Parser String
+target :: Parser Target
 target = keyword "dirs"  <|> keyword "files"
 
-preposition :: Parser String
-preposition = keyword "dirs"  <|> keyword "files"
+preposition :: Parser Preposition
+preposition = keyword "with"  <|> keyword "in"
 
--- command :: Parser String
--- command = (:) <$> stringToken
+
+command :: Parser String
+command = verb <|> target <|> preposition <|> stringToken
 
 parseCommand :: [String] -> Either ParseError String
-parseCommand (x:xs) = parse verb "(Parse Command)" x
+parseCommand (x:xs) = parse command "(Parse Command)" x
