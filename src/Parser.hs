@@ -15,13 +15,30 @@ import Control.Monad (void, ap, guard)
 import Data.Char (isLetter, isDigit)
 
 
-type Verb = String
-type Target = String
-type Preposition = String
+type Token = String
 
+data Verb
+  = List
+  | Delete
+  | Count
+  deriving (Eq, Show, Read)
+
+data Target
+  = Dirs
+  | Files
+  | Lines
+  | String
+  deriving (Eq, Show, Read)
+
+data Preposition
+  = With
+  | In
+  deriving (Eq, Show, Read)
 
 data Command
-  = Verb Target
+  = Verb
+  | Target
+  | Preposition
   deriving (Eq, Show)
 
 
@@ -31,34 +48,35 @@ whitespace = void $ many $ oneOf " \r\n\t"
 lexeme :: Parser a -> Parser a
 lexeme p = p <* whitespace
 
-identifier :: Parser String
+identifier :: Parser Command
 identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
   where
     firstChar = letter <|> char '_'
     nonFirstChar = digit <|> firstChar
 
-keyword :: String -> Parser String
+keyword :: String -> Parser Command
 keyword k = try $ do
   i <- identifier
   guard (i == k)
   return k
 
-stringToken :: Parser String
+stringToken :: Parser Token
 stringToken = lexeme (char '\'' *> manyTill anyChar (char '\''))
 
+verb :: Parser Command
+verb = keyword "List"
+--verb = keyword "List" <|> keyword "Delete" <|> keyword "Count"
 
-verb :: Parser Verb
-verb = keyword "list"  <|> keyword "delete" <|> keyword "count"
+-- target :: Parser Command
+-- target = keyword "dirs"  <|> keyword "files"
 
-target :: Parser Target
-target = keyword "dirs"  <|> keyword "files"
-
-preposition :: Parser Preposition
-preposition = keyword "with"  <|> keyword "in"
+-- preposition :: Parser Command
+-- preposition = keyword "with"  <|> keyword "in"
 
 
-command :: Parser String
-command = verb <|> target <|> preposition <|> stringToken
+command :: Parser Command
+command = verb
+-- command = verb <|> target <|> preposition <|> stringToken
 
-parseCommand :: [String] -> Either ParseError String
+parseCommand :: [String] -> Either ParseError Command
 parseCommand (x:xs) = parse command "(Parse Command)" x
