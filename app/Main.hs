@@ -1,16 +1,23 @@
 module Main where
 
 
+import Parser
+
+
 import System.Environment
 
 
-import Parser
+process :: [String] -> IO ()
+process [] = print "Nothing."
+process (x:xs) = do
+  let result = parseExpression x
+  case result of
+    Left error -> print error
+    Right expression -> print $ show expression
+  process xs
 
 
 main :: IO ()
 main = do
   command <- getArgs
-  run $ parseCommand command
-
-run :: Either ParseError Command -> IO ()
-run command = print . show $ command
+  process command

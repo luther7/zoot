@@ -1,82 +1,121 @@
-module Parser
-  ( Command,
-    ParseError,
-    parseCommand
-  ) where
+module Parser (
+  parseExpression
+) where
 
 
-import Text.Parsec.Error (ParseError)
+import Syntax
+
+
+import Text.Parsec
 import Text.Parsec.String (Parser)
-import Text.ParserCombinators.Parsec.Prim (parse, try)
-import Text.ParserCombinators.Parsec.Char (oneOf, char, digit, letter, satisfy, anyChar)
-import Text.ParserCombinators.Parsec.Combinator (many1, manyTill, chainl1)
-import Control.Applicative ((<$>), (<*>), (<*), (*>), (<|>), many, (<$))
-import Control.Monad (void, ap, guard)
-import Data.Char (isLetter, isDigit)
+import Text.Parsec.Language (emptyDef)
+import qualified Text.Parsec.Expr as Expression
+import qualified Text.Parsec.Token as Token
+import Data.Functor.Identity
 
 
-type Token = String
-
-data Verb
-  = List
-  | Delete
-  | Count
-  deriving (Eq, Show, Read)
-
-data Target
-  = Dirs
-  | Files
-  | Lines
-  | String
-  deriving (Eq, Show, Read)
-
-data Preposition
-  = With
-  | In
-  deriving (Eq, Show, Read)
-
-data Command
-  = Verb
-  | Target
-  | Preposition
-  deriving (Eq, Show)
-
-
-whitespace :: Parser ()
-whitespace = void $ many $ oneOf " \r\n\t"
-
-lexeme :: Parser a -> Parser a
-lexeme p = p <* whitespace
-
-identifier :: Parser Command
-identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
-  where
-    firstChar = letter <|> char '_'
-    nonFirstChar = digit <|> firstChar
-
-keyword :: String -> Parser Command
-keyword k = try $ do
-  i <- identifier
-  guard (i == k)
-  return k
-
-stringToken :: Parser Token
-stringToken = lexeme (char '\'' *> manyTill anyChar (char '\''))
-
-verb :: Parser Command
-verb = keyword "List"
---verb = keyword "List" <|> keyword "Delete" <|> keyword "Count"
-
--- target :: Parser Command
--- target = keyword "dirs"  <|> keyword "files"
-
--- preposition :: Parser Command
--- preposition = keyword "with"  <|> keyword "in"
+languageDefinition :: Token.LanguageDef ()
+languageDefinition = Token.LanguageDef
+  { Token.commentStart    = "/*"
+  , Token.commentEnd      = "*/"
+  , Token.commentLine     = "#"
+  , Token.nestedComments  = True
+  , Token.identStart      = letter
+  , Token.identLetter     = alphaNum <|> oneOf "_'"
+  , Token.opStart         = oneOf ":!#$%&*+./<=>?@\\^|-~"
+  , Token.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~"
+  , Token.reservedNames   =
+    [ "nop"
+    , "not"
+    , "and"
+    , "list"
+    , "count"
+    , "delete"
+    , "files"
+    , "dirs"
+    , "lines"
+    , "in"
+    , "with"
+    , "like"
+    , "matching"
+    ]
+  , Token.reservedOpNames = []
+  , Token.caseSensitive   = True
+  }
 
 
-command :: Parser Command
-command = verb
--- command = verb <|> target <|> preposition <|> stringToken
+lexer :: Token.TokenParser ()
+lexer = Token.makeTokenParser languageDefinition
 
-parseCommand :: [String] -> Either ParseError Command
-parseCommand (x:xs) = parse command "(Parse Command)" x
+parens :: Parser a -> Parser a
+parens = Token.parens lexer
+
+reserved :: String -> Parser ()
+reserved = Token.reserved lexer
+
+semicolonSeparated :: Parser a -> Parser [a]
+semicolonSeparated = Token.semiSep lexer
+
+reservedOperator :: String -> Parser ()
+reservedOperator = Token.reservedOp lexer
+
+binaryOperator :: String -> (a -> a -> a) -> Expression.Assoc -> Expression.Operator String () Identity a
+binaryOperator s f c = Expression.Infix (reservedOperator s >> return f) c
+
+prefixOperator :: String -> (a -> a) -> Expression.Operator String () Identity a
+prefixOperator s f = Expression.Prefix (reservedOperator s >> return f)
+
+postfixOperator :: String -> (a -> a) -> Expression.Operator String () Identity a
+postfixOperator s f = Expression.Postfix (reservedOperator s >> return f)
+
+
+table :: Expression.OperatorTable String () Identity Expression
+table = [
+    [
+      prefixOperator "not" Not
+    , binaryOperator "and" And Expression.AssocLeft
+    ]
+  ]
+
+
+parseSubject :: String -> (Expression -> Expression) -> (String -> Expression) -> Parser Expression
+parseSubject s f1 f2 = do
+  reserved s
+  _ <- char '"'
+  regex <- many (noneOf "\"")
+  _ <- char '"'
+  return $ f1 (f2 regex)
+
+
+parsePredicate :: String -> (Expression -> Expression) -> Parser Expression
+parsePredicate s f = do
+  reserved s
+  remaining <- term
+  return $ f remaining
+
+
+term :: Parser Expression
+term = parseSubject "like" Like Glob
+  <|> parseSubject "matching" Matching Regex
+  <|> parsePredicate "list" List
+  <|> parsePredicate "count" Count
+  <|> parsePredicate "delete" Delete
+  <|> parsePredicate "files" Files
+  <|> parsePredicate "dirs" Dirs
+  <|> parsePredicate "in" In
+  <|> parsePredicate "with" With
+  <|> parens expression
+
+expression :: Parser Expression
+expression = Expression.buildExpressionParser table term
+
+contents :: Parser a -> Parser a
+contents p = do
+  Token.whiteSpace lexer
+  r <- p
+  eof
+  return r
+
+
+parseExpression :: String -> Either ParseError Expression
+parseExpression s = parse (contents expression) "<stdin>" s
