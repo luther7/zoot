@@ -1,5 +1,6 @@
 module Syntax where
 
+
 data ValueExpression
   = StringLiteral String
   | NumberLiteral Integer
@@ -11,10 +12,10 @@ data ValueExpression
 
 data QueryExpression
   = Query
-  {queryVerb :: Maybe Verb
-  ,queryTarget :: Maybe Target
-  ,queryPreposition :: Maybe Preposition
-  ,queryCondition :: [Condition]
+  { queryVerb :: Maybe Verb
+  , queryTarget :: Maybe Target
+  , queryPreposition :: Maybe Preposition
+  , queryCondition :: [Condition]
   } deriving (Eq, Show)
 
 data Verb

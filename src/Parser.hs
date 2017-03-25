@@ -1,33 +1,58 @@
-module Parser (
-  parseValueExpression,
-  parseQueryExpression
-) where
+module Parser
+  (
+    parseValueExpression
+  , parseQueryExpression
+  ) where
 
 
 import Syntax
 
 
-import Text.Parsec (ParseError, parse)
+import Control.Monad (guard, void)
+import Text.Parsec (parse, ParseError)
+import Text.Parsec.Expr
+  (
+    Assoc(AssocLeft, AssocNone, AssocRight)
+  , buildExpressionParser
+  , Operator(Infix, Prefix)
+  )
 import Text.Parsec.String (Parser)
-import Text.Parsec.Expr (Operator(Infix, Prefix, Postfix), Assoc(AssocLeft, AssocRight, AssocNone), buildExpressionParser)
 import Text.ParserCombinators.Parsec.Prim ((<|>), many, try)
-import Text.ParserCombinators.Parsec.Char (oneOf, char, anyChar, digit, letter, satisfy, spaces)
-import Text.ParserCombinators.Parsec.Combinator (many1, manyTill, choice, chainl1, between, sepBy1, sepBy, eof, optionMaybe, option)
-import Control.Monad (void, guard)
-import Data.Char (isLetter, isDigit)
+import Text.ParserCombinators.Parsec.Char
+  (
+    anyChar
+  , char
+  , digit
+  , letter
+  , oneOf
+  , spaces
+  )
+import Text.ParserCombinators.Parsec.Combinator
+  (
+    between
+  , choice
+  , eof
+  , many1
+  , manyTill
+  , optionMaybe
+  , option
+  , sepBy1
+  , sepBy
+  )
 
 
 --
---
+-- Make Query
 --
 
 
 makeQuery :: QueryExpression
-makeQuery = Query {queryVerb = Nothing
-                ,queryTarget = Nothing
-                ,queryPreposition = Nothing
-                ,queryCondition = []
-                }
+makeQuery = Query
+  { queryVerb = Nothing
+  , queryTarget = Nothing
+  , queryPreposition = Nothing
+  , queryCondition = []
+  }
 
 
 --
@@ -49,9 +74,9 @@ identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
 
 symbol :: String -> Parser String
 symbol s = try $ lexeme $ do
-    u <- many1 (oneOf "<>=+-^%/*!|")
-    guard (s == u)
-    return s
+  u <- many1 (oneOf "<>=+-^%/*!|")
+  guard (s == u)
+  return s
 
 stringToken :: Parser String
 stringToken = lexeme (char '\'' *> manyTill anyChar (char '\''))
@@ -76,18 +101,18 @@ closeParen = lexeme $ char ')'
 
 keyword :: String -> Parser String
 keyword k = try $ do
-    i <- identifier
-    guard (i == k)
-    return k
+  i <- identifier
+  guard (i == k)
+  return k
 
 voidKeyword :: String -> Parser ()
 voidKeyword = void . keyword
 
 identifierBlacklist :: [String] -> Parser String
 identifierBlacklist bl = do
-    i <- identifier
-    guard (i `notElem` bl)
-    return i
+  i <- identifier
+  guard (i `notElem` bl)
+  return i
 
 parens :: Parser a -> Parser a
 parens = between openParen closeParen
@@ -114,27 +139,34 @@ parensValue :: Parser ValueExpression
 parensValue = Parens <$> parens (valueExpression [])
 
 term :: [String] -> Parser ValueExpression
-term blackList = choice [identity blackList
-                        ,numberLiteral
-                        ,parensValue
-                        ,stringLiteral]
+term blackList = choice
+  [ identity blackList
+  , numberLiteral
+  , parensValue
+  , stringLiteral
+  ]
 
 
 --
 -- Operators
 --
-table = [[prefix "-", prefix "+"]
-         ,[binary "+" AssocLeft
-          ,binary "-" AssocLeft]
-         ,[binary "<=" AssocRight
-          ,binary ">=" AssocRight
-          ,binary "!=" AssocRight]
-         ,[binary "<" AssocNone
-          ,binary ">" AssocNone]
-         ,[binary "=" AssocRight]
-         ,[prefixKeyword "not"]
-         ,[binaryKeyword "and" AssocLeft]
-         ,[binaryKeyword "or" AssocLeft]]
+table =
+  [ [prefix "-", prefix "+"]
+  , [ binary "+" AssocLeft
+    , binary "-" AssocLeft
+    ]
+  , [ binary "<=" AssocRight
+    , binary ">=" AssocRight
+    , binary "!=" AssocRight
+    ]
+  , [ binary "<" AssocNone
+    , binary ">" AssocNone
+  ]
+  , [binary "=" AssocRight]
+  , [prefixKeyword "not"]
+  , [binaryKeyword "and" AssocLeft]
+  , [binaryKeyword "or" AssocLeft]
+  ]
   where
     binary name assoc =
         Infix (makeBinaryOperator name <$ symbol name) assoc
@@ -161,28 +193,28 @@ valueExpression blackList = buildExpressionParser table (term blackList)
 
 verb :: Parser Verb
 verb = choice
-  [List <$ voidKeyword "list"
-  ,Count <$ voidKeyword "count"
-  ,Delete <$ voidKeyword "replace"
+  [ List <$ voidKeyword "list"
+  , Count <$ voidKeyword "count"
+  , Delete <$ voidKeyword "replace"
   ]
 
 target :: Parser Target
 target = choice
-  [Files <$ voidKeyword "files"
-  ,Dirs <$ voidKeyword "dirs"
+  [ Files <$ voidKeyword "files"
+  , Dirs <$ voidKeyword "dirs"
   ]
 
 preposition :: Parser Preposition
 preposition = choice
-  [voidKeyword "in" >> In <$> target
-  ,voidKeyword "with" >> With <$> target
+  [ voidKeyword "in" >> In <$> target
+  , voidKeyword "with" >> With <$> target
   ]
 
 condition :: Parser Condition
 condition = choice
-  [voidKeyword "like" >> Like <$> valueExpression []
-  ,voidKeyword "matching" >> Matching <$> valueExpression []
-  ,voidKeyword "where" >> Where <$> valueExpression []
+  [ voidKeyword "like" >> Like <$> valueExpression []
+  , voidKeyword "matching" >> Matching <$> valueExpression []
+  , voidKeyword "where" >> Where <$> valueExpression []
   ]
 
 
