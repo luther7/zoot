@@ -12,7 +12,7 @@ import Text.Parsec.String (Parser)
 import Text.Parsec.Expr (Operator(Infix, Prefix, Postfix), Assoc(AssocLeft, AssocRight, AssocNone), buildExpressionParser)
 import Text.ParserCombinators.Parsec.Prim ((<|>), many, try)
 import Text.ParserCombinators.Parsec.Char (oneOf, char, anyChar, digit, letter, satisfy, spaces)
-import Text.ParserCombinators.Parsec.Combinator (many1, manyTill, choice, chainl1, between, sepBy, eof, optionMaybe)
+import Text.ParserCombinators.Parsec.Combinator (many1, manyTill, choice, chainl1, between, sepBy1, sepBy, eof, optionMaybe, option)
 import Control.Monad (void, guard)
 import Data.Char (isLetter, isDigit)
 
@@ -26,7 +26,7 @@ makeQuery :: QueryExpression
 makeQuery = Query {queryVerb = Nothing
                 ,queryTarget = Nothing
                 ,queryPreposition = Nothing
-                ,queryCondition = Nothing
+                ,queryCondition = []
                 }
 
 
@@ -93,7 +93,7 @@ parens :: Parser a -> Parser a
 parens = between openParen closeParen
 
 commaSeperated :: Parser a -> Parser [a]
-commaSeperated = (`sepBy` comma)
+commaSeperated = (`sepBy1` comma)
 
 
 --
@@ -174,14 +174,15 @@ target = choice
 
 preposition :: Parser Preposition
 preposition = choice
-  [In <$ voidKeyword "in"
-  ,With <$ voidKeyword "with"
+  [voidKeyword "in" >> In <$> target
+  ,voidKeyword "with" >> With <$> target
   ]
 
 condition :: Parser Condition
 condition = choice
-  [Like <$ voidKeyword "like"
-  ,Matching <$ voidKeyword "matching"
+  [voidKeyword "like" >> Like <$> valueExpression []
+  ,voidKeyword "matching" >> Matching <$> valueExpression []
+  ,voidKeyword "where" >> Where <$> valueExpression []
   ]
 
 
@@ -195,7 +196,7 @@ queryExpression = Query
                   <$> optionMaybe verb
                   <*> optionMaybe target
                   <*> optionMaybe preposition
-                  <*> optionMaybe condition
+                  <*> option [] (commaSeperated condition)
 
 
 --

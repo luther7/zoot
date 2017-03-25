@@ -14,7 +14,7 @@ data QueryExpression
   {queryVerb :: Maybe Verb
   ,queryTarget :: Maybe Target
   ,queryPreposition :: Maybe Preposition
-  ,queryCondition :: Maybe Condition
+  ,queryCondition :: [Condition]
   } deriving (Eq, Show)
 
 data Verb
@@ -29,11 +29,12 @@ data Target
   deriving (Eq, Show)
 
 data Preposition
-  = In
-  | With
+  = In Target
+  | With Target
   deriving (Eq, Show)
 
 data Condition
-  = Like
-  | Matching
+  = Like ValueExpression
+  | Matching ValueExpression
+  | Where ValueExpression
   deriving (Eq, Show)
