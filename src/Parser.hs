@@ -49,7 +49,7 @@ import Text.ParserCombinators.Parsec.Combinator
 makeQuery :: QueryExpression
 makeQuery = Query
   { queryVerb = Nothing
-  , queryTarget = Nothing
+  , queryNoun = Nothing
   , queryPreposition = Nothing
   , queryCondition = []
   }
@@ -198,16 +198,16 @@ verb = choice
   , Delete <$ voidKeyword "replace"
   ]
 
-target :: Parser Target
-target = choice
-  [ Files <$ voidKeyword "files"
-  , Dirs <$ voidKeyword "dirs"
+noun :: Parser Noun
+noun = choice
+  [ voidKeyword "files" >> Files <$> option [] (commaSeperated condition)
+  , voidKeyword "dirs" >> Dirs <$> option [] (commaSeperated condition)
   ]
 
 preposition :: Parser Preposition
 preposition = choice
-  [ voidKeyword "in" >> In <$> target
-  , voidKeyword "with" >> With <$> target
+  [ voidKeyword "in" >> In <$> noun
+  , voidKeyword "with" >> With <$> noun
   ]
 
 condition :: Parser Condition
@@ -226,7 +226,7 @@ condition = choice
 queryExpression :: Parser QueryExpression
 queryExpression = Query
                   <$> optionMaybe verb
-                  <*> optionMaybe target
+                  <*> optionMaybe noun
                   <*> optionMaybe preposition
                   <*> option [] (commaSeperated condition)
 

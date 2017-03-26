@@ -13,7 +13,7 @@ data ValueExpression
 data QueryExpression
   = Query
   { queryVerb :: Maybe Verb
-  , queryTarget :: Maybe Target
+  , queryNoun :: Maybe Noun
   , queryPreposition :: Maybe Preposition
   , queryCondition :: [Condition]
   } deriving (Eq, Show)
@@ -24,14 +24,14 @@ data Verb
   | Delete
   deriving (Eq, Show)
 
-data Target
-  = Files
-  | Dirs
+data Noun
+  = Files [Condition]
+  | Dirs [Condition]
   deriving (Eq, Show)
 
 data Preposition
-  = In Target
-  | With Target
+  = In Noun
+  | With Noun
   deriving (Eq, Show)
 
 data Condition
